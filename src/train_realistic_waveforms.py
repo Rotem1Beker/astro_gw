@@ -50,23 +50,20 @@ class ChirpWaveformGenerator:
         M_total = M1 + M2
         M_chirp = (M1 * M2)**(3/5) / M_total**(1/5)  # chirp mass
         
-        # תדר ואמפליטודה כפונקציה של הזמן
-        # זוהי אפרוקסימציה פשוטה לנוסחאות post-Newtonian
+        # 🔧 FIX: simplified chirp with proper scaling
+        # תדר התחלתי ותדר סופי
+        f_low = 20.0  # Hz
+        f_high = 500.0  # Hz
         
-        # זמן לפני המיזוג
-        t_to_merger = self.duration - self.t
-        t_to_merger = np.maximum(t_to_merger, 1e-3)  # מניעת חלוקה באפס
+        # Chirp linear in frequency (פשוט יותר אבל עובד)
+        f = f_low + (f_high - f_low) * (self.t / self.duration)
         
-        # תדר כפונקציה של זמן (עולה לקראת המיזוג)
-        f = (1 / (8 * np.pi)) * (5 / (256 * t_to_merger))**(3/8) * \
-            (G * M_chirp / c**3)**(-5/8)
-        f = np.clip(f, 20, 500)  # גבולות תדר ריאליסטיים
+        # אמפליטודה גדלה לקראת המיזוג
+        # 🔧 FIX: Much stronger amplitude
+        amplitude = 1e-21 * (m1 * m2)**(2/3) / distance * (f / 100)**(2/3)
+        amplitude *= 1e5  # הגברה חזקה!
         
-        # אמפליטודה (יורדת עם מרחק, עולה לקראת המיזוג)
-        h0 = 1e-21 * (M_chirp / M_sun)**(5/6) / distance
-        amplitude = h0 * (f / 100)**(2/3)
-        
-        # הפאזה (אינטגרל של התדר)
+        # הפאזה
         phase = 2 * np.pi * np.cumsum(f) / self.sample_rate
         
         # Polarizations
@@ -76,9 +73,12 @@ class ChirpWaveformGenerator:
         # Combined strain
         h = h_plus + h_cross
         
-        # Taper (חלון) בתחילה ובסוף
-        window = np.hanning(self.n_samples)
-        h *= window
+        # Taper (חלון) רק בתחילה ובסוף - רך יותר
+        taper_samples = int(0.05 * self.n_samples)  # 5% מכל צד
+        taper = np.ones(self.n_samples)
+        taper[:taper_samples] = np.sin(np.linspace(0, np.pi/2, taper_samples))**2
+        taper[-taper_samples:] = np.sin(np.linspace(np.pi/2, 0, taper_samples))**2
+        h *= taper
         
         return h
     
@@ -147,7 +147,12 @@ class RealisticGWDataset(Dataset):
         # FFT preprocessing (כמו באימון המקורי)
         fft = np.fft.rfft(noisy_waveform)[:1025]  # לוקחים רק חלק
         fft_abs = np.abs(fft)
-        fft_normalized = fft_abs / (np.max(fft_abs) + 1e-8)
+        
+        # 🔧 FIX: Better normalization
+        # אל תנרמל לפי max - זה הורס את המידע!
+        # במקום זאת: log-scale + standardization
+        fft_log = np.log10(fft_abs + 1e-30)  # log scale
+        fft_normalized = (fft_log - fft_log.mean()) / (fft_log.std() + 1e-8)
         
         # פרמטרים להעריך (נעבוד רק על המסות כרגע)
         params = np.array([m1, m2], dtype=np.float32)

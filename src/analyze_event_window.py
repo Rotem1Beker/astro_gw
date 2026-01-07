@@ -7,6 +7,7 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy import signal
+from pathlib import Path
 from preprocess import preprocess
 from model.flow import build_flow
 from model.conditioning import ContextEncoder
@@ -47,12 +48,13 @@ event_end = min(len(strain), event_idx + window_samples // 2)
 signal_window = strain[event_start:event_end]
 
 # חלון רעש (מתחילת הקובץ, רחוק מהאירוע)
-noise_start = int(2.0 * SAMPLE_RATE)  # מתחיל אחרי 2 שניות
+noise_start = int(5.0 * SAMPLE_RATE)  # מתחיל אחרי 5 שניות (רחוק יותר!)
 noise_end = noise_start + window_samples
 noise_window = strain[noise_start:noise_end]
 
 print(f"Event window: {len(signal_window)} samples (~{len(signal_window)/SAMPLE_RATE:.3f}s)")
 print(f"Noise window: {len(noise_window)} samples (~{len(noise_window)/SAMPLE_RATE:.3f}s)")
+print(f"  → Noise taken from t={noise_start/SAMPLE_RATE:.1f}s (far from event at t={event_time_rel:.1f}s)")
 print(f"Event GPS time: {EVENT_GPS}, relative time: {event_time_rel:.3f}s, index: {event_idx}")
 
 # בדיקת גודל FFT
@@ -62,7 +64,10 @@ print(f"FFT output size: {len(test_fft)} (will be padded/truncated to 1025)")
 # =========================
 # טעינת מודל
 # =========================
-ckpt = torch.load("model.pt", map_location=device)
+# השתמש במודל הריאליסטי אם קיים, אחרת במודל המקורי
+model_path = "model_realistic.pt" if Path("model_realistic.pt").exists() else "model.pt"
+print(f"Loading model from: {model_path}")
+ckpt = torch.load(model_path, map_location=device)
 input_dim = ckpt["encoder"]["net.0.weight"].shape[1]
 context_dim = config["model"]["context_dim"]
 
