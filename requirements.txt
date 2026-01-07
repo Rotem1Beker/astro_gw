@@ -1,0 +1,7 @@
+numpy
+scipy
+pyyaml
+torch
+torchvision
+nflows
+matplotlib

@@ -1,0 +1,14 @@
+data:
+  sample_rate: 1024
+  duration: 2.0
+  noise_std: 0.0000000000000000000001
+
+train:
+  batch_size: 32
+  lr: 0.001
+  epochs: 20
+
+model:
+  context_dim: 128
+  hidden_dim: 64
+  n_transforms: 5
